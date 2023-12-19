@@ -3,7 +3,7 @@ const inquirer = require("inquirer");
 const mysql2 = require("mysql2");
 const ctable = require("console.table");
 
-
+// Import required modules
 const db = mysql2.createConnection({
     user: "root",
     password: process.env.DB_PASSWORD,
@@ -12,7 +12,9 @@ const db = mysql2.createConnection({
     port: 3306
 })
 
+// Main menu function to prompt user
 function mainMenu() {
+    // Prompt the user to select action
     inquirer.prompt(
         [
             {
@@ -34,6 +36,7 @@ function mainMenu() {
         ]
     )
     .then(answers => {
+        // Switch case to handle different user choices
         switch(answers.action) {
             case "View all departments":
                 db.query("SELECT * FROM department", function(err, data) {
@@ -165,11 +168,10 @@ function mainMenu() {
                             type: "list",
                             name: "manager",
                             message: "Who is the employees manager?",
-                            choices: [managerChoices, "None"]
+                            choices: managerChoices
                         },
                     ]).then(answers => {
-                        // Correct the INSERT query to add an employee
-                        db.query(`INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES (?, ?, ?, ?)`, [answers.firstName, answers.lastName, answers.role, answers.manager === null ? null : answers.manager], function(err, data) {
+                        db.query(`INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES (?, ?, ?, ?)`, [answers.firstName, answers.lastName, answers.role, answers.manager || null], function(err, data) {
                             if (err) {
                                 console.log(err);
                             } else {
@@ -181,10 +183,58 @@ function mainMenu() {
                 });
             });
             break;
+        case "Update an employee role":
+            db.query('SELECT id, CONCAT(first_name, " ", last_name) AS name FROM employee', (err, employees) => {
+                if (err) {
+                    console.error(err);
+                    return;
+                }
+        
+                // Fetch roles
+                db.query('SELECT id, title FROM role', (err, roles) => {
+                    if (err) {
+                        console.error(err);
+                        return;
+                    }
+
+                const employeeChoices = employees.map(employee => ({ name: employee.name, value: employee.id }));
+                const roleChoices = roles.map(role => ({ name: role.title, value: role.id }));
+                
+                inquirer.prompt([
+                    {
+                        type: "list",
+                        name: "roleId",
+                        message: "Which employee's role do you want to update?",
+                        choices: employeeChoices
+                    },
+                    {
+                        type: 'list',
+                        name: 'roleId',
+                        message: 'Which role do you want to assign to the selected employee?',  
+                        choices: roleChoices
+                    },
+                    ])
+                    .then(answers => {
+                    db.query('UPDATE employee SET role_id = ? WHERE id = ?', [answers.roleId, answers.employeeId], (err, results) => {
+                        if (err) {
+                            console.error(err);
+                            return;
+                        
+                        } else {
+                            console.log("Updated employee role")
+                            mainMenu();
+                        }
+                        })
+                    })
+                })
+            });
+            break;
+            // Default case for unmatched actions
             default:
                 console.log("doesn't match any cases")
         }
     })
 }
 
+// Calling function to start the application
 mainMenu()
